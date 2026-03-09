@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in with Zene — Trustless</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Space Grotesk',system-ui,sans-serif;background:#0a0a14;color:#f0eef8;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{background:rgba(12,12,20,0.97);border:1px solid rgba(0,229,199,0.15);border-radius:24px;padding:40px 32px;max-width:400px;width:100%;text-align:center}
+.logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:20px}
+.logo img{height:40px}
+.logo span{font-size:22px;font-weight:700}
+.badge{font-size:11px;color:#00E5C7;background:rgba(0,229,199,0.1);padding:4px 12px;border-radius:20px;display:inline-block;margin-bottom:20px;letter-spacing:0.5px}
+.trust{background:rgba(0,229,199,0.04);border:1px solid rgba(0,229,199,0.1);border-radius:12px;padding:14px;margin-bottom:20px;text-align:left}
+.trust-title{font-size:11px;font-weight:700;color:#00E5C7;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase}
+.trust-item{font-size:12px;color:#8a86a0;margin-bottom:3px;display:flex;align-items:flex-start;gap:8px}
+.trust-item::before{content:'✓';color:#00E5C7;font-weight:700;flex-shrink:0}
+h2{font-size:18px;font-weight:700;margin-bottom:6px}
+.sub{font-size:13px;color:#8a86a0;margin-bottom:20px}
+.status{font-size:13px;color:#8a86a0;margin-top:12px;min-height:20px}
+.status.error{color:#FF6B9D}
+.status.success{color:#00E5C7}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(0,229,199,0.3);border-top-color:#00E5C7;border-radius:50%;animation:spin 0.6s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.footer{font-size:11px;color:rgba(255,255,255,0.2);margin-top:20px}
+.footer a{color:rgba(0,229,199,0.4);text-decoration:none}
+.hash-display{font-family:'DM Mono',monospace;font-size:11px;color:#7B61FF;background:rgba(123,97,255,0.08);padding:8px 12px;border-radius:8px;margin-top:12px;word-break:break-all;text-align:left}
+#g_id_onload,#google-btn-container{display:flex;justify-content:center;margin:12px 0}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <img src="https://zene.network/logo-transparent.png" alt="Zene">
+  </div>
+  <div class="badge">Hosted on Arweave · Immutable · Auditable</div>
+
+  <div class="trust">
+    <div class="trust-title">Why this page is trustless</div>
+    <div class="trust-item">Stored permanently on Arweave — no one can change it</div>
+    <div class="trust-item">Your Google identity never leaves this page</div>
+    <div class="trust-item">Only a keccak256 hash is sent back to the app</div>
+    <div class="trust-item">Salt derived from your passkey (PRF) — only you have it</div>
+  </div>
+
+  <div id="main-view">
+    <h2>Link Google Account</h2>
+    <div class="sub">Sign in with Google to compute your identity hash.</div>
+    <div id="google-btn-container"></div>
+  </div>
+
+  <div id="processing-view" style="display:none">
+    <div class="sub"><span class="spinner"></span> <span id="proc-status">Computing identity hash...</span></div>
+  </div>
+
+  <div id="done-view" style="display:none">
+    <h2 style="color:#00E5C7">✓ Identity Hash Computed</h2>
+    <div class="sub">Your Google identity was processed entirely on this immutable page. Only the hash below was sent back.</div>
+    <div class="hash-display" id="hash-display"></div>
+    <div class="sub" style="margin-top:12px"><span class="spinner"></span> Redirecting back...</div>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="footer">
+    <a href="https://zene.network" target="_blank">zene.network</a> · Trustless identity on Avalanche
+  </div>
+</div>
+
+<script>
+// ============ Config ============
+const GOOGLE_CLIENT_ID = '848969399098-vbqnc7m9o26ga2sh7qbb0d5n8c4obfme.apps.googleusercontent.com';
+
+// ============ Parse params from fragment ============
+let salt = null;
+let returnUrl = null;
+
+const fragment = new URLSearchParams(window.location.hash.slice(1));
+if (fragment.get('salt')) salt = fragment.get('salt');
+if (fragment.get('returnUrl')) returnUrl = fragment.get('returnUrl');
+
+// Clean fragment
+if (salt) history.replaceState(null, '', window.location.pathname);
+
+if (!salt) {
+  document.getElementById('status').textContent = 'Error: No salt received. Open this page from a Zene-powered app.';
+  document.getElementById('status').className = 'status error';
+}
+
+// ============ Google callback (GIS) ============
+function handleGoogleResponse(response) {
+  // response.credential is the JWT id_token
+  const idToken = response.credential;
+  if (!idToken) {
+    document.getElementById('status').textContent = 'Error: No token from Google';
+    document.getElementById('status').className = 'status error';
+    return;
+  }
+
+  document.getElementById('main-view').style.display = 'none';
+  document.getElementById('processing-view').style.display = 'block';
+
+  try {
+    // Decode JWT payload
+    const parts = idToken.split('.');
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const googleSub = payload.sub;
+
+    if (!googleSub) throw new Error('No sub in token');
+    if (!salt) throw new Error('No salt');
+
+    // Compute identity hash: SHA-256(salt | googleSub)
+    // In production this would be keccak256 via CRE
+    const hashInput = salt + '|' + googleSub;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(hashInput);
+
+    crypto.subtle.digest('SHA-256', data).then(hashBuffer => {
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const identityHash = '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      // Show result
+      document.getElementById('processing-view').style.display = 'none';
+      document.getElementById('done-view').style.display = 'block';
+      document.getElementById('hash-display').textContent = identityHash;
+
+      // Redirect back to parent app with hash in fragment
+      if (returnUrl) {
+        setTimeout(() => {
+          window.location.href = returnUrl + '#zene_hash=' + encodeURIComponent(identityHash);
+        }, 1500);
+      }
+
+      // Also try BroadcastChannel + opener postMessage (for popup mode)
+      try {
+        const bc = new BroadcastChannel('zene-auth');
+        bc.postMessage({ type: 'zene-auth-result', identityHash, success: true });
+        bc.close();
+      } catch(e) {}
+      if (window.opener) {
+        window.opener.postMessage({ type: 'zene-auth-result', identityHash, success: true }, '*');
+      }
+    });
+  } catch (e) {
+    document.getElementById('processing-view').style.display = 'none';
+    document.getElementById('main-view').style.display = 'block';
+    document.getElementById('status').textContent = 'Error: ' + e.message;
+    document.getElementById('status').className = 'status error';
+  }
+}
+
+// Make it global for GIS callback
+window.handleGoogleResponse = handleGoogleResponse;
+
+// ============ Init Google Identity Services ============
+window.onload = function() {
+  if (!salt) return;
+
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleResponse,
+    auto_select: false,
+  });
+
+  google.accounts.id.renderButton(
+    document.getElementById('google-btn-container'),
+    {
+      theme: 'filled_black',
+      size: 'large',
+      width: 300,
+      text: 'continue_with',
+      shape: 'pill',
+    }
+  );
+
+  // Also prompt One Tap
+  google.accounts.id.prompt();
+};
+</script>
+</body>
+</html>

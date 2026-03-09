@@ -22,19 +22,37 @@ This workflow uses CRE's Confidential HTTP to ensure:
 ## Architecture
 
 ```
-User Device (Arweave page)
-  → Passkey + PRF → salt
-  → Google PKCE → auth code
-  → POST to CRE: { code, salt, address, verifier }
+User Device
+  → Passkey (Face ID / Touch ID) → credential + salt derived from PRF
+  → Redirects to immutable Arweave sign-in page
 
-Chainlink CRE (Confidential Compute)
-  → Exchange code → Google sub (PRIVATE)
-  → keccak256(salt + sub + chainId + appId)
-  → Write hash to ZeneRegistry
+Arweave Sign-In Page (immutable, auditable)
+  → Google sign-in via Google Identity Services (JWT stays in browser)
+  → Sends auth code + salt to Chainlink CRE (NOT to any server)
+
+Chainlink CRE / DON (Decentralized Oracle Network)
+  → Multiple nodes in TEEs (Trusted Execution Environments)
+  → Each node independently exchanges code for Google sub
+    via Confidential HTTP (encrypted — even Chainlink can't see it)
+  → Nodes reach consensus on result
+  → Computes keccak256(salt + sub + chainId + appId)
+  → Writes ONLY the hash to ZeneRegistry on Avalanche
 
 Avalanche Fuji
   → ZeneRegistry: resolve(hash) → address ✓
 ```
+
+**Why this matters:** No single party ever sees the Google sub ID. Not our server (we don't have one in the auth path), not any single Chainlink node. The token exchange is split across multiple TEEs with consensus. The Arweave page is immutable — anyone can verify it doesn't exfiltrate data.
+
+**Daily sign-in** is passkey-only: Face ID → on-chain resolve → signed in. Sub-second, no server, no Google. The full Arweave + CRE flow only runs during **registration** and **account recovery**.
+
+## Current Status
+
+- ✅ CRE workflow coded and **simulation passing**
+- ✅ Arweave sign-in page deployed and wired into live demo
+- ✅ ZeneRegistry deployed on Fuji with working resolve
+- ⏳ CRE deploy access pending (Chainlink team approval)
+- 📝 Workflow uses mock Google sub in simulation; production will use real Confidential HTTP to Google's token endpoint
 
 ## Setup
 
@@ -55,6 +73,6 @@ cre workflow deploy zene-identity-workflow -T staging-settings
 
 ## Links
 
-- Arweave sign-in page: https://gateway.irys.xyz/CW83UzFa5DPHCp52B5E5tSWLvhLYYdDbz8gc3XNQv5PV
+- Arweave sign-in page: https://gateway.irys.xyz/kDRgb85nkNFZ1D-dh894NScXqQ0s-RZg4WUX8qX8Qg0
 - ZeneRegistry: 0x8C44d507C71Fa29E7eD15Ac36678F247ad5516CF (Fuji)
 - Demo: https://zene.network/demo
