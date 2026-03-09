@@ -57,4 +57,4 @@ cre workflow deploy zene-identity-workflow -T staging-settings
 
 - Arweave sign-in page: https://gateway.irys.xyz/CW83UzFa5DPHCp52B5E5tSWLvhLYYdDbz8gc3XNQv5PV
 - ZeneRegistry: 0x8C44d507C71Fa29E7eD15Ac36678F247ad5516CF (Fuji)
-- Demo: https://zene-auth.claws.page/demo/register
+- Demo: https://zene.network/demo
