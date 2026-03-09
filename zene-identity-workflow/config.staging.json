@@ -1,0 +1,9 @@
+{
+  "schedule": "*/30 * * * * *",
+  "googleClientId": "848969399098-vbqnc7m9o26ga2sh7qbb0d5n8c4obfme.apps.googleusercontent.com",
+  "googleTokenUrl": "https://oauth2.googleapis.com/token",
+  "redirectUri": "https://zene.network/auth/callback",
+  "registryAddress": "0x8C44d507C71Fa29E7eD15Ac36678F247ad5516CF",
+  "chainId": "43113",
+  "appId": "zene-network"
+}

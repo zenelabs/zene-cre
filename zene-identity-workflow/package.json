@@ -1,0 +1,11 @@
+{
+  "name": "zene-identity-workflow",
+  "version": "0.1.0",
+  "description": "Zene identity registration via Chainlink CRE — privacy-preserving Google OAuth verification",
+  "dependencies": {
+    "@chainlink/cre-sdk": "latest"
+  },
+  "scripts": {
+    "postinstall": "bun x cre-setup"
+  }
+}
